@@ -116,6 +116,7 @@ class HexChatUI(tk.Frame):
         self.groupme_push_client = None # Will be initialized after fetching user ID
         self.create_widgets()
         self.fetch_current_user()
+        self.fetch_groups() # Automatically fetch groups on startup
         self.after(100, self.process_message_queue) # Start processing queue
 
     def create_widgets(self):
@@ -199,9 +200,7 @@ class HexChatUI(tk.Frame):
         self.chat_input.pack(fill=tk.X, expand=True, padx=(0,5), pady=(0,5), ipady=4)
         self.chat_input.bind("<Return>", self.send_message)
 
-        # Refresh button
-        refresh_button = tk.Button(bottom_frame, text="Refresh", command=self.fetch_groups, bg="#3c3c3c", fg="white", borderwidth=0, highlightthickness=0)
-        refresh_button.pack(side=tk.RIGHT, padx=5, pady=5)
+        
 
     def fetch_current_user(self):
         try:
