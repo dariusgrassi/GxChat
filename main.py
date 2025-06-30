@@ -109,6 +109,7 @@ class HexChatUI(tk.Frame):
         self.groups = []
         self.current_group_id = None
         self.current_username = "User1" # Default username
+        self.current_channel_name = "" # Default channel name
         self.current_user_id = None
         self.current_members = []
         self.chat_history_image_references = [] # To prevent images from being garbage collected
@@ -210,6 +211,7 @@ class HexChatUI(tk.Frame):
             self.current_username = user_data.get('name', "User1")
             self.current_user_id = user_data.get('id')
             self.user_info_label.config(text=self.current_username)
+            self.update_window_title()
 
             # Initialize and start GroupMePushClient after fetching user ID
             if self.current_user_id and not self.groupme_push_client:
@@ -219,6 +221,12 @@ class HexChatUI(tk.Frame):
                 self.groupme_push_client.start()
         except requests.exceptions.RequestException as e:
             self.add_message("System", f"Error fetching current user: {e}")
+
+    def update_window_title(self):
+        title = f"GxChat: {self.current_username}"
+        if self.current_channel_name:
+            title += f" @ #{self.current_channel_name}"
+        self.master.title(title)
 
     def fetch_groups(self):
         self.fetch_current_user() # Fetch user info when refreshing groups
@@ -241,9 +249,11 @@ class HexChatUI(tk.Frame):
             index = selection[0]
             group = self.groups[index]
             self.current_group_id = group['id']
+            self.current_channel_name = group['name']
             self.current_members = group['members']
             self.update_user_list(group['members'])
             self.fetch_messages(self.current_group_id)
+            self.update_window_title()
 
             # Ensure push client is running
             if self.groupme_push_client and not self.groupme_push_client.running:
