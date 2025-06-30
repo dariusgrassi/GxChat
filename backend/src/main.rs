@@ -69,6 +69,8 @@ struct Message {
     created_at: i64,
     system: bool,
     attachments: Option<Vec<Attachment>>,
+    #[serde(default)]
+    favorited_by: Vec<String>,
 }
 
 #[derive(Deserialize, Debug, Serialize, Clone)]
@@ -135,7 +137,7 @@ async fn get_messages_from_api(group_id: &str, token: &str) -> Result<Vec<Messag
 }
 
 // Function to send a message to a specific group.
-async fn send_message_to_api(group_id: &str, token: &str, text: String) -> Result<(), Box<dyn std::error::Error>> {
+async fn send_message_to_api(group_id: &str, token: &str, text: String) -> Result<Message, Box<dyn std::error::Error>> {
     let url = format!("https://api.groupme.com/v3/groups/{}/messages", group_id);
     let client = reqwest::Client::new();
     let unique_id = Uuid::new_v4().to_string();
@@ -158,7 +160,11 @@ async fn send_message_to_api(group_id: &str, token: &str, text: String) -> Resul
         return Err(format!("API request failed with status {}: {}", status, error_text).into());
     }
 
-    Ok(())
+    let sent_message_response = response.json::<serde_json::Value>().await?;
+    let message_data = sent_message_response.get("response").and_then(|r| r.get("message")).ok_or("Invalid response format")?;
+    let sent_message: Message = serde_json::from_value(message_data.clone())?;
+
+    Ok(sent_message)
 }
 
 // Function to get the current user's details.
