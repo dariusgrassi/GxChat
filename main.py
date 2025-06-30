@@ -184,8 +184,12 @@ class HexChatUI(tk.Frame):
         bottom_frame.pack(fill=tk.X)
 
         # User info and input field
+        self.online_indicator = tk.Canvas(bottom_frame, width=10, height=10, bg="#2a2a2a", highlightthickness=0)
+        self.online_indicator.create_oval(0, 0, 10, 10, fill="#00ff00", outline="#00ff00") # Green circle
+        self.online_indicator.pack(side=tk.LEFT, padx=(5, 2), pady=(0,5))
+
         self.user_info_label = tk.Label(bottom_frame, text=self.current_username, bg="#2a2a2a", fg="white", font=("Courier", 14, "bold"))
-        self.user_info_label.pack(side=tk.LEFT, padx=5, pady=(0,5))
+        self.user_info_label.pack(side=tk.LEFT, padx=(0,5), pady=(0,5))
 
         self.chat_input = tk.Entry(
             bottom_frame,
