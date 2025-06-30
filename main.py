@@ -141,7 +141,7 @@ class HexChatUI(tk.Frame):
             selectforeground="white",
             highlightthickness=0,
             borderwidth=0,
-            font=("Courier", 14)
+            font=("Courier", 12)
         )
         self.channel_list.pack(fill=tk.Y, expand=True, padx=5, pady=(0,5))
         self.channel_list.bind("<<ListboxSelect>>", self.on_channel_select)
@@ -159,7 +159,7 @@ class HexChatUI(tk.Frame):
             state=tk.DISABLED,
             bg="#1e1e1e",
             fg="white",
-            font=("Courier", 14),
+            font=("Courier", 12),
             borderwidth=0,
             highlightthickness=0
         )
@@ -174,7 +174,7 @@ class HexChatUI(tk.Frame):
             fg="#a9a9a9",
             highlightthickness=0,
             borderwidth=0,
-            font=("Courier", 14)
+            font=("Courier", 12)
         )
         self.user_list.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         chat_user_paned_window.add(user_list_frame, width=200, minsize=100)
@@ -192,7 +192,7 @@ class HexChatUI(tk.Frame):
             bg="#3c3c3c",
             fg="white",
             insertbackground='white',
-            font=("Courier", 14),
+            font=("Courier", 12),
             borderwidth=0,
             highlightthickness=1,
             highlightcolor="#555555",
