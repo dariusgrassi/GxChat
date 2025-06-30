@@ -151,10 +151,32 @@ class HexChatUI(tk.Frame):
         chat_user_paned_window = tk.PanedWindow(main_paned_window, orient=tk.HORIZONTAL, sashwidth=5, bg="#2a2a2a")
         main_paned_window.add(chat_user_paned_window)
 
-        # Chat history (middle pane)
-        chat_history_frame = tk.Frame(chat_user_paned_window, bg="#1e1e1e")
+        # Chat history and description container (middle pane)
+        chat_description_history_frame = tk.Frame(chat_user_paned_window, bg="#1e1e1e")
+        chat_user_paned_window.add(chat_description_history_frame, width=400, minsize=200)
+
+        
+
+        # Channel Description Entry (read-only appearance)
+        self.channel_description_entry = tk.Entry(
+            chat_description_history_frame,
+            bg="#3c3c3c",
+            fg="white",
+            insertbackground='white',
+            font=("Courier", 12),
+            borderwidth=0,
+            highlightthickness=1,
+            highlightcolor="#555555",
+            highlightbackground="#444444",
+            state='normal', # Allow cursor and selection
+            validate='all',
+            validatecommand=(self.register(self.validate_readonly_entry), '%P') # %P is the new value of the entry
+        )
+        self.channel_description_entry.pack(fill=tk.X, padx=5, pady=(0, 5))
+
+        # Chat history (below description)
         self.chat_history = tk.Text(
-            chat_history_frame,
+            chat_description_history_frame, # Pack into the new container frame
             wrap=tk.WORD,
             state=tk.DISABLED,
             bg="#1e1e1e",
@@ -164,7 +186,6 @@ class HexChatUI(tk.Frame):
             highlightthickness=0
         )
         self.chat_history.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
-        chat_user_paned_window.add(chat_history_frame, width=400, minsize=200)
 
         # User list (right pane)
         user_list_frame = tk.Frame(chat_user_paned_window, bg="#1e1e1e")
@@ -246,9 +267,12 @@ class HexChatUI(tk.Frame):
         self.channel_list.delete(0, tk.END)
         for group in self.groups:
             self.channel_list.insert(tk.END, f"  #{group['name']}")
+        if self.groups and not self.current_group_id:
+            self.channel_list.selection_set(0) # Select the first item
+            self.on_channel_select(None) # Manually trigger the selection handler
 
     def on_channel_select(self, event):
-        selection = event.widget.curselection()
+        selection = self.channel_list.curselection()
         if selection:
             index = selection[0]
             group = self.groups[index]
@@ -258,10 +282,23 @@ class HexChatUI(tk.Frame):
             self.update_user_list(group['members'])
             self.fetch_messages(self.current_group_id)
             self.update_window_title()
+            self.update_channel_description_entry(group.get('description', ''))
 
             # Ensure push client is running
             if self.groupme_push_client and not self.groupme_push_client.running:
                 self.groupme_push_client.start()
+
+    def validate_readonly_entry(self, new_value):
+        # Always return False to prevent any changes to the entry widget
+        return False
+
+    def update_channel_description_entry(self, description):
+        # Temporarily disable validation to allow programmatic update
+        self.channel_description_entry.config(validate="none")
+        self.channel_description_entry.delete(0, tk.END)
+        self.channel_description_entry.insert(0, description)
+        # Re-enable validation
+        self.channel_description_entry.config(validate="all")
 
     def update_user_list(self, members):
         self.user_list.delete(0, tk.END)
