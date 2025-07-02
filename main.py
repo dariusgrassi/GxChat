@@ -4,8 +4,10 @@ import requests
 from datetime import datetime
 from PIL import Image, ImageTk
 import io
+import re
 import threading
 import time
+import webbrowser
 from queue import Queue
 
 
@@ -532,7 +534,30 @@ class HexChatUI(tk.Frame):
 
             self.chat_history.insert(tk.END, f"[{timestamp_str}] ", "timestamp")
             self.chat_history.insert(tk.END, f"{user}: ", "user_tag")
-            self.chat_history.insert(tk.END, f"{message}\n")
+
+            # Find and tag hyperlinks
+            url_pattern = re.compile(r"https?://\S+")
+            matches = url_pattern.finditer(message)
+            last_end = 0
+            for match in matches:
+                start, end = match.span()
+                self.chat_history.insert(tk.END, message[last_end:start])
+                # Insert the hyperlink with a tag
+                hyperlink = message[start:end]
+                self.chat_history.insert(
+                    tk.END, hyperlink, ("hyperlink", f"hyperlink-{hyperlink}")
+                )
+                last_end = end
+            self.chat_history.insert(tk.END, message[last_end:] + "\n")
+
+            self.chat_history.tag_configure(
+                "hyperlink", foreground="#00BFFF", underline=True
+            )
+            self.chat_history.tag_bind(
+                "hyperlink", "<Button-1>", self.on_hyperlink_click
+            )
+            self.chat_history.tag_bind("hyperlink", "<Enter>", self.on_hyperlink_enter)
+            self.chat_history.tag_bind("hyperlink", "<Leave>", self.on_hyperlink_leave)
 
         self.chat_history.config(state=tk.DISABLED)
 
@@ -540,6 +565,21 @@ class HexChatUI(tk.Frame):
         scroll_position = self.chat_history.yview()[1]
         if scroll_position > 0.9:
             self.chat_history.see(tk.END)
+
+    def on_hyperlink_click(self, event):
+        # Get the tag at the clicked position
+        tags = self.chat_history.tag_names(tk.CURRENT)
+        for tag in tags:
+            if tag.startswith("hyperlink-"):
+                url = tag.replace("hyperlink-", "", 1)
+                webbrowser.open_new(url)
+                break
+
+    def on_hyperlink_enter(self, event):
+        self.chat_history.config(cursor="hand2")
+
+    def on_hyperlink_leave(self, event):
+        self.chat_history.config(cursor="")
 
     def process_message_queue(self):
         try:
