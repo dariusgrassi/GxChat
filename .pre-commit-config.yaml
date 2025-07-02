@@ -16,9 +16,20 @@ repos:
     hooks:
       - id: mypy
         args: [--ignore-missing-imports, --no-strict-optional, --allow-untyped-globals]
-        additional_dependencies: [Pillow, requests, websocket-client]
-  - repo: https://github.com/doublify/pre-commit-rust
-    rev: v1.0 # Use a recent stable version
+        additional_dependencies: [Pillow, requests, websocket-client, types-requests]
+  - repo: local
     hooks:
-      - id: fmt
+      - id: rustfmt
+        name: rustfmt
+        entry: cargo fmt --manifest-path backend/Cargo.toml -- --check
+        language: system
+        types: [rust]
+        files: ^backend/
+        pass_filenames: false
       - id: clippy
+        name: clippy
+        entry: cargo clippy --manifest-path backend/Cargo.toml -- -D warnings
+        language: system
+        types: [rust]
+        files: ^backend/
+        pass_filenames: false

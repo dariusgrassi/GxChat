@@ -1,14 +1,14 @@
 use axum::{
+    extract::{Json as AxumJson, Path},
+    response::Json,
     routing::{get, post},
     Router,
-    extract::{Path, Json as AxumJson},
-    response::Json,
 };
+use dotenv::dotenv;
 use serde::{Deserialize, Serialize};
+use std::env;
 use std::net::SocketAddr;
 use uuid::Uuid;
-use dotenv::dotenv;
-use std::env;
 
 // This struct matches the top-level API response object for groups from GroupMe.
 #[derive(Deserialize, Debug, Serialize)]
@@ -106,8 +106,9 @@ async fn get_groups_from_api(token: &str) -> Result<Vec<Group>, Box<dyn std::err
     let client = reqwest::Client::new();
     let mut page = 1;
     loop {
-        let url = format!("https://api.groupme.com/v3/groups?page={}&per_page=100", page);
-        let response = client.get(&url)
+        let url = format!("https://api.groupme.com/v3/groups?page={page}&per_page=100");
+        let response = client
+            .get(&url)
             .header("X-Access-Token", token)
             .send()
             .await?;
@@ -115,7 +116,7 @@ async fn get_groups_from_api(token: &str) -> Result<Vec<Group>, Box<dyn std::err
         if !response.status().is_success() {
             let status = response.status();
             let error_text = response.text().await?;
-            return Err(format!("API request failed with status {}: {}", status, error_text).into());
+            return Err(format!("API request failed with status {status}: {error_text}").into());
         }
 
         let api_response = response.json::<ApiResponseGroups>().await?;
@@ -129,10 +130,14 @@ async fn get_groups_from_api(token: &str) -> Result<Vec<Group>, Box<dyn std::err
 }
 
 // Function to fetch messages for a specific group.
-async fn get_messages_from_api(group_id: &str, token: &str) -> Result<Vec<Message>, Box<dyn std::error::Error>> {
-    let url = format!("https://api.groupme.com/v3/groups/{}/messages?limit=20", group_id);
+async fn get_messages_from_api(
+    group_id: &str,
+    token: &str,
+) -> Result<Vec<Message>, Box<dyn std::error::Error>> {
+    let url = format!("https://api.groupme.com/v3/groups/{group_id}/messages?limit=20");
     let client = reqwest::Client::new();
-    let response = client.get(&url)
+    let response = client
+        .get(&url)
         .header("X-Access-Token", token)
         .send()
         .await?;
@@ -140,7 +145,7 @@ async fn get_messages_from_api(group_id: &str, token: &str) -> Result<Vec<Messag
     if !response.status().is_success() {
         let status = response.status();
         let error_text = response.text().await?;
-        return Err(format!("API request failed with status {}: {}", status, error_text).into());
+        return Err(format!("API request failed with status {status}: {error_text}").into());
     }
 
     let api_response = response.json::<ApiResponseMessages>().await?;
@@ -148,8 +153,12 @@ async fn get_messages_from_api(group_id: &str, token: &str) -> Result<Vec<Messag
 }
 
 // Function to send a message to a specific group.
-async fn send_message_to_api(group_id: &str, token: &str, text: String) -> Result<Message, Box<dyn std::error::Error>> {
-    let url = format!("https://api.groupme.com/v3/groups/{}/messages", group_id);
+async fn send_message_to_api(
+    group_id: &str,
+    token: &str,
+    text: String,
+) -> Result<Message, Box<dyn std::error::Error>> {
+    let url = format!("https://api.groupme.com/v3/groups/{group_id}/messages");
     let client = reqwest::Client::new();
     let unique_id = Uuid::new_v4().to_string();
     let payload = serde_json::json!({
@@ -159,7 +168,8 @@ async fn send_message_to_api(group_id: &str, token: &str, text: String) -> Resul
         }
     });
 
-    let response = client.post(&url)
+    let response = client
+        .post(&url)
         .header("X-Access-Token", token)
         .json(&payload)
         .send()
@@ -168,11 +178,14 @@ async fn send_message_to_api(group_id: &str, token: &str, text: String) -> Resul
     if !response.status().is_success() {
         let status = response.status();
         let error_text = response.text().await?;
-        return Err(format!("API request failed with status {}: {}", status, error_text).into());
+        return Err(format!("API request failed with status {status}: {error_text}").into());
     }
 
     let sent_message_response = response.json::<serde_json::Value>().await?;
-    let message_data = sent_message_response.get("response").and_then(|r| r.get("message")).ok_or("Invalid response format")?;
+    let message_data = sent_message_response
+        .get("response")
+        .and_then(|r| r.get("message"))
+        .ok_or("Invalid response format")?;
     let sent_message: Message = serde_json::from_value(message_data.clone())?;
 
     Ok(sent_message)
@@ -182,7 +195,8 @@ async fn send_message_to_api(group_id: &str, token: &str, text: String) -> Resul
 async fn get_current_user_from_api(token: &str) -> Result<User, Box<dyn std::error::Error>> {
     let url = "https://api.groupme.com/v3/users/me";
     let client = reqwest::Client::new();
-    let response = client.get(url)
+    let response = client
+        .get(url)
         .header("X-Access-Token", token)
         .send()
         .await?;
@@ -190,7 +204,7 @@ async fn get_current_user_from_api(token: &str) -> Result<User, Box<dyn std::err
     if !response.status().is_success() {
         let status = response.status();
         let error_text = response.text().await?;
-        return Err(format!("API request failed with status {}: {}", status, error_text).into());
+        return Err(format!("API request failed with status {status}: {error_text}").into());
     }
 
     let api_response = response.json::<ApiResponseUser>().await?;
@@ -203,7 +217,7 @@ async fn get_all_groups() -> Json<Vec<Group>> {
     match get_groups_from_api(&token).await {
         Ok(groups) => Json(groups),
         Err(e) => {
-            eprintln!("Error fetching groups: {}", e);
+            eprintln!("Error fetching groups: {e}");
             Json(vec![] as Vec<Group>)
         }
     }
@@ -215,20 +229,23 @@ async fn get_group_messages(Path(group_id): Path<String>) -> Json<Vec<Message>> 
     match get_messages_from_api(&group_id, &token).await {
         Ok(messages) => Json(messages),
         Err(e) => {
-            eprintln!("Error fetching messages for group {}: {}", group_id, e);
+            eprintln!("Error fetching messages for group {group_id}: {e}");
             Json(vec![] as Vec<Message>)
         }
     }
 }
 
 // Axum handler to send a message to a specific group.
-async fn send_group_message(Path(group_id): Path<String>, AxumJson(payload): AxumJson<SendMessagePayload>) -> Json<String> {
+async fn send_group_message(
+    Path(group_id): Path<String>,
+    AxumJson(payload): AxumJson<SendMessagePayload>,
+) -> Json<String> {
     let token = env::var("GROUPME_ACCESS_TOKEN").expect("GROUPME_ACCESS_TOKEN must be set");
     match send_message_to_api(&group_id, &token, payload.text).await {
         Ok(_) => Json("Message sent successfully".to_string()),
         Err(e) => {
-            eprintln!("Error sending message to group {}: {}", group_id, e);
-            Json(format!("Error sending message: {}", e))
+            eprintln!("Error sending message to group {group_id}: {e}");
+            Json(format!("Error sending message: {e}"))
         }
     }
 }
@@ -239,7 +256,7 @@ async fn get_current_user() -> Json<User> {
     match get_current_user_from_api(&token).await {
         Ok(user) => Json(user),
         Err(e) => {
-            eprintln!("Error fetching current user: {}", e);
+            eprintln!("Error fetching current user: {e}");
             // Return a default or empty User struct in case of error
             Json(User {
                 id: String::new(),
@@ -278,7 +295,7 @@ async fn main() {
         .route("/token", get(get_token));
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
-    println!("listening on {}", addr);
+    println!("listening on {addr}");
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();
 }
