@@ -94,3 +94,7 @@ For planned features and future development, please refer to the [ROADMAP.md](RO
 ## Contributing
 
 Contributions are welcome! Please see the [ROADMAP.md](ROADMAP.md) for ideas or open an issue to discuss new features or bug fixes.
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
