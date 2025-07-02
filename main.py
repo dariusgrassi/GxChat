@@ -140,6 +140,8 @@ class HexChatUI(tk.Frame):
         self.groupme_push_client = None  # Will be initialized after fetching user ID
         self.polling_job = None
         self.is_polling = False
+        self.displayed_message_ids = set()
+        self.messages_cache = []
         self.create_widgets()
         self.fetch_current_user()
         self.fetch_groups()  # Automatically fetch groups on startup
@@ -331,11 +333,20 @@ class HexChatUI(tk.Frame):
         if selection:
             index = selection[0]
             group = self.groups[index]
+
+            # Clear previous channel state
+            self.chat_history.config(state=tk.NORMAL)
+            self.chat_history.delete(1.0, tk.END)
+            self.chat_history.config(state=tk.DISABLED)
+            self.chat_history_image_references.clear()
+            self.displayed_message_ids.clear()
+            self.messages_cache.clear()
+
             self.current_group_id = group["id"]
             self.current_channel_name = group["name"]
             self.current_members = group["members"]
             self.update_user_list(group["members"])
-            self.fetch_messages(self.current_group_id)
+            self.fetch_messages(self.current_group_id, initial_load=True)
             self.update_window_title()
             self.update_channel_description_entry(group.get("description", ""))
 
@@ -380,45 +391,69 @@ class HexChatUI(tk.Frame):
         for member in members:
             self.user_list.insert(tk.END, member["nickname"])
 
-    def fetch_messages(self, group_id):
-        self.chat_history.config(state=tk.NORMAL)
-        self.chat_history.delete(1.0, tk.END)
-        self.chat_history_image_references.clear()  # Clear image references for new chat
-        self.chat_history.config(state=tk.DISABLED)
+    def fetch_messages(self, group_id, initial_load=False):
         try:
             response = requests.get(f"http://127.0.0.1:3000/groups/{group_id}/messages")
             response.raise_for_status()
             messages = response.json()
-            for message in reversed(messages):
-                user = message.get("name", "Unknown")
-                text = message.get("text", "")
-                created_at = datetime.fromtimestamp(message.get("created_at", 0))
 
-                # Check for image attachments
-                image_url = None
-                attachments = message.get("attachments", [])
-                for attachment in attachments:
-                    if attachment.get("type") == "image":
-                        image_url = attachment.get("url")
-                        break
+            if messages != self.messages_cache:
+                self.messages_cache = messages  # Update cache
 
-                if image_url:
-                    self.add_message(user, "", created_at)  # Add timestamp and user
-                    self.add_image_to_chat(image_url)  # Add image
-                elif text:
-                    self.add_message(user, text, created_at)
+                # Preserve scroll position and check if user is at the bottom
+                scroll_position = self.chat_history.yview()
+                is_at_bottom = scroll_position[1] > 0.9
 
-                # Display likes
-                favorited_by = message.get("favorited_by", [])
-                if favorited_by:
-                    liker_names = [
-                        self.get_user_name(liker_id) for liker_id in favorited_by
-                    ]
-                    likes_message = f"  Liked by: {', '.join(liker_names)}"
-                    self.add_message("System", likes_message, None, is_like=True)
+                # Rebuild chat history
+                self.chat_history.config(state=tk.NORMAL)
+                self.chat_history.delete(1.0, tk.END)
+                self.chat_history_image_references.clear()
+
+                for message in reversed(messages):
+                    self.add_new_message(message, from_history=True)
+
+                self.chat_history.config(state=tk.DISABLED)
+
+                # Restore scroll position or scroll to bottom
+                if initial_load or is_at_bottom:
+                    self.chat_history.see(tk.END)
+                else:
+                    self.chat_history.yview_moveto(scroll_position[0])
 
         except requests.exceptions.RequestException as e:
             self.add_message("System", f"Error fetching messages: {e}")
+
+    def add_new_message(self, message, from_history=False):
+        message_id = message.get("id")
+        if not from_history and message_id in self.displayed_message_ids:
+            return  # Don't add duplicate real-time messages
+
+        user = message.get("name", "Unknown")
+        text = message.get("text", "")
+        created_at = datetime.fromtimestamp(message.get("created_at", 0))
+
+        # Check for image attachments
+        image_url = None
+        attachments = message.get("attachments", [])
+        for attachment in attachments:
+            if attachment.get("type") == "image":
+                image_url = attachment.get("url")
+                break
+
+        if image_url:
+            self.add_message(user, "", created_at)
+            self.add_image_to_chat(image_url)
+        elif text:
+            self.add_message(user, text, created_at)
+
+        # Display likes
+        favorited_by = message.get("favorited_by", [])
+        if favorited_by:
+            liker_names = [self.get_user_name(liker_id) for liker_id in favorited_by]
+            likes_message = f"  Liked by: {', '.join(liker_names)}"
+            self.add_message("System", likes_message, None, is_like=True)
+
+        self.displayed_message_ids.add(message_id)  # Mark message as displayed
 
     def get_user_name(self, user_id):
         for member in self.current_members:
@@ -446,7 +481,11 @@ class HexChatUI(tk.Frame):
             self.chat_history.image_create(tk.END, image=photo)
             self.chat_history.insert(tk.END, "\n")  # Add a newline after the image
             self.chat_history.config(state=tk.DISABLED)
-            self.chat_history.see(tk.END)
+
+            # Auto-scroll only if the user is near the bottom
+            scroll_position = self.chat_history.yview()[1]
+            if scroll_position > 0.9:
+                self.chat_history.see(tk.END)
 
             self.chat_history_image_references.append(photo)  # Keep a reference
         except Exception as e:
@@ -496,24 +535,24 @@ class HexChatUI(tk.Frame):
             self.chat_history.insert(tk.END, f"{message}\n")
 
         self.chat_history.config(state=tk.DISABLED)
-        self.chat_history.see(tk.END)
+
+        # Auto-scroll only if the user is near the bottom
+        scroll_position = self.chat_history.yview()[1]
+        if scroll_position > 0.9:
+            self.chat_history.see(tk.END)
 
     def process_message_queue(self):
         try:
             while not self.message_queue.empty():
                 message_data = self.message_queue.get_nowait()
-                alert_type = message_data.get("type")
-                subject = message_data.get("subject")
-
-                if alert_type == "line.create" and subject:
-                    message_group_id = subject.get("group_id")
-                    if message_group_id == self.current_group_id:
-                        user = subject.get("name", "Unknown")
-                        text = subject.get("text", "")
-                        created_at = datetime.fromtimestamp(
-                            subject.get("created_at", 0)
-                        )
-                        self.add_message(user, text, created_at)
+                if message_data.get("type") == "line.create":
+                    message = message_data.get("subject")
+                    if message and message.get("group_id") == self.current_group_id:
+                        # Add to message cache and displayed IDs
+                        self.messages_cache.append(message)
+                        self.displayed_message_ids.add(message.get("id"))
+                        # Add to UI
+                        self.add_new_message(message)
         finally:
             self.after(100, self.process_message_queue)
 
