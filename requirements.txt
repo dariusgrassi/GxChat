@@ -1,3 +1,4 @@
 requests
 PILlow
 websocket-client
+pre-commit
