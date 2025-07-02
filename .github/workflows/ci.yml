@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-lint:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.x'
+
+    - name: Install Python dependencies
+      run: pip install -r requirements.txt
+
+    - name: Run Ruff (lint and format check)
+      run: |
+        ruff check .
+        ruff format --check .
+
+    - name: Run MyPy (type check)
+      run: mypy .
+
+    - name: Setup Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: 1.82 # Match the version used in Dockerfile
+        components: rustfmt, clippy
+
+    - name: Build Rust backend
+      run: cargo build --verbose
+      working-directory: backend
+
+    - name: Run Rustfmt (check formatting)
+      run: cargo fmt --check
+      working-directory: backend
+
+    - name: Run Clippy (linting)
+      run: cargo clippy -- -D warnings
+      working-directory: backend

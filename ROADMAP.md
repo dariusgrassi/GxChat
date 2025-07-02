@@ -1,10 +1,7 @@
 # GxChat Roadmap
 
 ## Planned Features
-
-- [ ] Add README
-- [ ] Add Github Actions
-- [ ] Live updates for likes
+- [ ] Add clickable links
 - [ ] Notifications when a user is @'d in the current channel
 - [ ] Ability to like messages
 - [ ] Sending images
@@ -15,9 +12,11 @@
 - [ ] Support for replies
 - [ ] Light and dark themes
 - [ ] Direct messaging chats
+- [x] Add Github Actions
+- [x] Live updates for likes (remains to be seen whether polling is effective)
+- [x] Add README
 - [x] Add linting for commits for Python and Rust
 - [x] Containerize application backend
-- [x] Add clickable links (remains to be seen whether polling is effective)
 - [x] Remove hard-coded GroupMe developer key, make customizable
 - [x] Add button to manually restart Faye channel on timeout
 - [x] Window title (GxChat: "username @ #channel name")
