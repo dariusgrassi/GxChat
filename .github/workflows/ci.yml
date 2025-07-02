@@ -22,13 +22,8 @@ jobs:
     - name: Install Python dependencies
       run: pip install -r requirements.txt
 
-    - name: Run Ruff (lint and format check)
-      run: |
-        ruff check .
-        ruff format --check .
-
-    - name: Run MyPy (type check)
-      run: mypy .
+    - name: Run Pre-commit Hooks (Python)
+      run: pre-commit run --all-files
 
     - name: Setup Rust
       uses: dtolnay/rust-toolchain@stable

@@ -1,5 +1,7 @@
 # GxChat
 
+[![CI](https://github.com/dariusgrassi/GxChat/actions/workflows/ci.yml/badge.svg)](https://github.com/dariusgrassi/GxChat/actions/workflows/ci.yml)
+
 GxChat is a cross-platform chat application designed to interact with the GroupMe API. It features a Python (Tkinter) frontend for the user interface and a high-performance Rust (Axum) backend for handling API requests and real-time communication.
 
 ## Features
