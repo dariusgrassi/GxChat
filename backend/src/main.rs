@@ -7,6 +7,8 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use uuid::Uuid;
+use dotenv::dotenv;
+use std::env;
 
 // This struct matches the top-level API response object for groups from GroupMe.
 #[derive(Deserialize, Debug, Serialize)]
@@ -100,21 +102,30 @@ struct User {
 
 // The main function to fetch groups from the GroupMe API.
 async fn get_groups_from_api(token: &str) -> Result<Vec<Group>, Box<dyn std::error::Error>> {
-    let url = "https://api.groupme.com/v3/groups";
+    let mut all_groups = Vec::new();
     let client = reqwest::Client::new();
-    let response = client.get(url)
-        .header("X-Access-Token", token)
-        .send()
-        .await?;
+    let mut page = 1;
+    loop {
+        let url = format!("https://api.groupme.com/v3/groups?page={}&per_page=100", page);
+        let response = client.get(&url)
+            .header("X-Access-Token", token)
+            .send()
+            .await?;
 
-    if !response.status().is_success() {
-        let status = response.status();
-        let error_text = response.text().await?;
-        return Err(format!("API request failed with status {}: {}", status, error_text).into());
+        if !response.status().is_success() {
+            let status = response.status();
+            let error_text = response.text().await?;
+            return Err(format!("API request failed with status {}: {}", status, error_text).into());
+        }
+
+        let api_response = response.json::<ApiResponseGroups>().await?;
+        if api_response.response.is_empty() {
+            break; // No more groups, exit the loop
+        }
+        all_groups.extend(api_response.response);
+        page += 1;
     }
-
-    let api_response = response.json::<ApiResponseGroups>().await?;
-    Ok(api_response.response)
+    Ok(all_groups)
 }
 
 // Function to fetch messages for a specific group.
@@ -188,8 +199,8 @@ async fn get_current_user_from_api(token: &str) -> Result<User, Box<dyn std::err
 
 // Axum handler to get all groups.
 async fn get_all_groups() -> Json<Vec<Group>> {
-    let token = "***REMOVED***";
-    match get_groups_from_api(token).await {
+    let token = env::var("GROUPME_ACCESS_TOKEN").expect("GROUPME_ACCESS_TOKEN must be set");
+    match get_groups_from_api(&token).await {
         Ok(groups) => Json(groups),
         Err(e) => {
             eprintln!("Error fetching groups: {}", e);
@@ -200,8 +211,8 @@ async fn get_all_groups() -> Json<Vec<Group>> {
 
 // Axum handler to get messages for a specific group.
 async fn get_group_messages(Path(group_id): Path<String>) -> Json<Vec<Message>> {
-    let token = "***REMOVED***";
-    match get_messages_from_api(&group_id, token).await {
+    let token = env::var("GROUPME_ACCESS_TOKEN").expect("GROUPME_ACCESS_TOKEN must be set");
+    match get_messages_from_api(&group_id, &token).await {
         Ok(messages) => Json(messages),
         Err(e) => {
             eprintln!("Error fetching messages for group {}: {}", group_id, e);
@@ -212,8 +223,8 @@ async fn get_group_messages(Path(group_id): Path<String>) -> Json<Vec<Message>> 
 
 // Axum handler to send a message to a specific group.
 async fn send_group_message(Path(group_id): Path<String>, AxumJson(payload): AxumJson<SendMessagePayload>) -> Json<String> {
-    let token = "***REMOVED***";
-    match send_message_to_api(&group_id, token, payload.text).await {
+    let token = env::var("GROUPME_ACCESS_TOKEN").expect("GROUPME_ACCESS_TOKEN must be set");
+    match send_message_to_api(&group_id, &token, payload.text).await {
         Ok(_) => Json("Message sent successfully".to_string()),
         Err(e) => {
             eprintln!("Error sending message to group {}: {}", group_id, e);
@@ -224,8 +235,8 @@ async fn send_group_message(Path(group_id): Path<String>, AxumJson(payload): Axu
 
 // Axum handler to get the current user's details.
 async fn get_current_user() -> Json<User> {
-    let token = "***REMOVED***";
-    match get_current_user_from_api(token).await {
+    let token = env::var("GROUPME_ACCESS_TOKEN").expect("GROUPME_ACCESS_TOKEN must be set");
+    match get_current_user_from_api(&token).await {
         Ok(user) => Json(user),
         Err(e) => {
             eprintln!("Error fetching current user: {}", e);
@@ -245,13 +256,26 @@ async fn get_current_user() -> Json<User> {
     }
 }
 
+#[derive(Serialize)]
+struct TokenResponse {
+    token: String,
+}
+
+async fn get_token() -> Json<TokenResponse> {
+    let token = env::var("GROUPME_ACCESS_TOKEN").expect("GROUPME_ACCESS_TOKEN must be set");
+    Json(TokenResponse { token })
+}
+
 #[tokio::main]
 async fn main() {
+    dotenv().ok();
+
     let app = Router::new()
         .route("/groups", get(get_all_groups))
         .route("/groups/:group_id/messages", get(get_group_messages))
         .route("/groups/:group_id/messages", post(send_group_message))
-        .route("/user/me", get(get_current_user));
+        .route("/user/me", get(get_current_user))
+        .route("/token", get(get_token));
 
     let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
     println!("listening on {}", addr);

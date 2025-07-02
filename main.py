@@ -10,15 +10,17 @@ import time
 from queue import Queue
 
 class GroupMePushClient:
-    def __init__(self, access_token, user_id, message_queue):
+    def __init__(self, access_token, user_id, message_queue, status_callback=None):
         self.access_token = access_token
         self.user_id = user_id
         self.message_queue = message_queue
+        self.status_callback = status_callback
         self.client_id = None
         self.faye_url = "https://push.groupme.com/faye"
         self.session = requests.Session()
         self.running = False
         self.message_id_counter = 0
+        self.reconnect_delay = 5 # seconds
 
     def _send_faye_request(self, messages):
         headers = {"Content-Type": "application/json"}
@@ -28,6 +30,9 @@ class GroupMePushClient:
             return response.json()
         except requests.exceptions.RequestException as e:
             print(f"Faye request failed: {e}")
+            if self.status_callback:
+                self.status_callback("disconnected")
+            self.client_id = None # Invalidate client_id to force re-handshake
             return None
 
     def handshake(self):
@@ -68,32 +73,39 @@ class GroupMePushClient:
         return False
 
     def connect(self):
-        if not self.client_id:
-            print("Cannot connect: no client ID (perform handshake first).")
-            return
-
-        self.message_id_counter += 1
-        connect_message = {
-            "channel": "/meta/connect",
-            "clientId": self.client_id,
-            "connectionType": "long-polling",
-            "id": str(self.message_id_counter)
-        }
         while self.running:
+            if not self.client_id:
+                print("Attempting to re-establish Faye connection...")
+                if self.status_callback:
+                    self.status_callback("connecting")
+                if self.handshake() and self.subscribe_user_channel():
+                    print("Faye connection re-established.")
+                    if self.status_callback:
+                        self.status_callback("connected")
+                else:
+                    print(f"Failed to re-establish Faye connection. Retrying in {self.reconnect_delay} seconds...")
+                    if self.status_callback:
+                        self.status_callback("disconnected")
+                    time.sleep(self.reconnect_delay)
+                    continue # Skip to next iteration to retry handshake
+
+            self.message_id_counter += 1
+            connect_message = {
+                "channel": "/meta/connect",
+                "clientId": self.client_id,
+                "connectionType": "long-polling",
+                "id": str(self.message_id_counter)
+            }
             response = self._send_faye_request([connect_message])
             if response:
                 for msg in response:
                     if msg.get("channel") == f"/user/{self.user_id}" and msg.get("data"):
-                        # Process message data
                         self.message_queue.put(msg["data"])
             time.sleep(1) # Poll every second
 
     def start(self):
         self.running = True
-        if self.handshake() and self.subscribe_user_channel():
-            threading.Thread(target=self.connect, daemon=True).start()
-        else:
-            print("Failed to start GroupMe push client.")
+        threading.Thread(target=self.connect, daemon=True).start()
 
     def stop(self):
         self.running = False
@@ -119,6 +131,7 @@ class HexChatUI(tk.Frame):
         self.fetch_current_user()
         self.fetch_groups() # Automatically fetch groups on startup
         self.after(100, self.process_message_queue) # Start processing queue
+        self.after(200, self.start_faye_client) # Start Faye client after a short delay
 
     def create_widgets(self):
         # Main frame
@@ -127,7 +140,13 @@ class HexChatUI(tk.Frame):
 
         # Top-level PanedWindow for resizable columns
         main_paned_window = tk.PanedWindow(main_frame, orient=tk.HORIZONTAL, sashwidth=5, bg="#2a2a2a")
-        main_paned_window.pack(fill=tk.BOTH, expand=True)
+        
+        # Bottom frame for user info and input
+        bottom_frame = tk.Frame(main_frame, bg="#2a2a2a")
+
+        # Pack containers in the correct order for proper resizing
+        bottom_frame.pack(side=tk.BOTTOM, fill=tk.X, pady=(5,0))
+        main_paned_window.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
 
         # Channel list (left pane)
         channel_list_frame = tk.Frame(main_paned_window, bg="#3c3c3c")
@@ -143,7 +162,7 @@ class HexChatUI(tk.Frame):
             borderwidth=0,
             font=("Courier", 12)
         )
-        self.channel_list.pack(fill=tk.Y, expand=True, padx=5, pady=(0,5))
+        self.channel_list.pack(fill=tk.BOTH, expand=True, padx=5, pady=(0,5))
         self.channel_list.bind("<<ListboxSelect>>", self.on_channel_select)
         main_paned_window.add(channel_list_frame, width=200, minsize=100)
 
@@ -200,10 +219,6 @@ class HexChatUI(tk.Frame):
         self.user_list.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         chat_user_paned_window.add(user_list_frame, width=200, minsize=100)
 
-        # Bottom frame for user info and input
-        bottom_frame = tk.Frame(main_frame, bg="#2a2a2a")
-        bottom_frame.pack(fill=tk.X)
-
         # User info and input field
         self.online_indicator = tk.Canvas(bottom_frame, width=10, height=10, bg="#2a2a2a", highlightthickness=0)
         self.online_indicator.create_oval(0, 0, 10, 10, fill="#00ff00", outline="#00ff00") # Green circle
@@ -238,12 +253,12 @@ class HexChatUI(tk.Frame):
             self.user_info_label.config(text=self.current_username)
             self.update_window_title()
 
-            # Initialize and start GroupMePushClient after fetching user ID
+            # Initialize GroupMePushClient after fetching user ID, but don't start it yet
             if self.current_user_id and not self.groupme_push_client:
-                # TODO: Replace with actual access token retrieval
-                access_token = "***REMOVED***" # Placeholder
-                self.groupme_push_client = GroupMePushClient(access_token, self.current_user_id, self.message_queue)
-                self.groupme_push_client.start()
+                token_response = requests.get("http://127.0.0.1:3000/token")
+                token_response.raise_for_status()
+                access_token = token_response.json().get("token")
+                self.groupme_push_client = GroupMePushClient(access_token, self.current_user_id, self.message_queue, self.update_online_indicator)
         except requests.exceptions.RequestException as e:
             self.add_message("System", f"Error fetching current user: {e}")
 
@@ -266,7 +281,7 @@ class HexChatUI(tk.Frame):
     def update_channel_list(self):
         self.channel_list.delete(0, tk.END)
         for group in self.groups:
-            self.channel_list.insert(tk.END, f"  #{group['name']}")
+            self.channel_list.insert(tk.END, f"#{group['name']}")
         if self.groups and not self.current_group_id:
             self.channel_list.selection_set(0) # Select the first item
             self.on_channel_select(None) # Manually trigger the selection handler
@@ -433,6 +448,22 @@ class HexChatUI(tk.Frame):
                     print(f"Received non-subject message: {message_data}")
         finally:
             self.after(100, self.process_message_queue)
+
+    def start_faye_client(self):
+        if self.groupme_push_client and not self.groupme_push_client.running:
+            self.groupme_push_client.start()
+
+    def update_online_indicator(self, status):
+        # Schedule the actual GUI update to run on the main thread
+        self.master.after(0, lambda: self._update_online_indicator_gui(status))
+
+    def _update_online_indicator_gui(self, status):
+        color = "#00ff00"  # Green for connected
+        if status == "disconnected":
+            color = "#ff0000"  # Red for disconnected
+        elif status == "connecting":
+            color = "#ffa500"  # Orange for connecting
+        self.online_indicator.itemconfig(self.online_indicator.find_all()[0], fill=color, outline=color)
 
 if __name__ == "__main__":
     root = tk.Tk()

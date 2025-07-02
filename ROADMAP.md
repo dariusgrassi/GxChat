@@ -4,10 +4,11 @@
 
 - [x] Window title (GxChat: "username @ #channel name")
 - [x] Description of current channel above chat history
-- [ ] Direct messaging to friends
+- [ ] Direct messaging chats
+- [ ] Add button to manually restart Faye channel on timeout 
 - [x] Green bubble next to username in input box (shows "online")
 - [ ] Light and dark themes
-- [ ] Ability to like messages (maybe a command?)
+- [ ] Ability to like messages
 - [ ] Support for GIFs
 - [ ] Support for replies
 - [ ] Longer chat history
@@ -18,4 +19,5 @@
 - [ ] Add README
 - [ ] Add Github Actions
 - [ ] Add clickable links
+- [ ] Pull all channels user is in
 
