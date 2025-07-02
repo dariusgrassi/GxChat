@@ -101,6 +101,11 @@ class GroupMePushClient:
                 for msg in response:
                     if msg.get("channel") == f"/user/{self.user_id}" and msg.get("data"):
                         self.message_queue.put(msg["data"])
+                    elif msg.get("channel") == "/meta/connect" and not msg.get("successful"):
+                        print("Faye connect message returned unsuccessful. Reconnecting...")
+                        self.client_id = None # Force re-handshake
+                        time.sleep(self.reconnect_delay)
+                        break # Exit inner loop to start reconnection process
             time.sleep(1) # Poll every second
 
     def start(self):
@@ -127,6 +132,8 @@ class HexChatUI(tk.Frame):
         self.chat_history_image_references = [] # To prevent images from being garbage collected
         self.message_queue = Queue()
         self.groupme_push_client = None # Will be initialized after fetching user ID
+        self.polling_job = None
+        self.is_polling = False
         self.create_widgets()
         self.fetch_current_user()
         self.fetch_groups() # Automatically fetch groups on startup
@@ -287,6 +294,7 @@ class HexChatUI(tk.Frame):
             self.on_channel_select(None) # Manually trigger the selection handler
 
     def on_channel_select(self, event):
+        self.stop_polling() # Stop polling for the old channel
         selection = self.channel_list.curselection()
         if selection:
             index = selection[0]
@@ -302,6 +310,24 @@ class HexChatUI(tk.Frame):
             # Ensure push client is running
             if self.groupme_push_client and not self.groupme_push_client.running:
                 self.groupme_push_client.start()
+            
+            self.start_polling() # Start polling for the new channel
+
+    def start_polling(self):
+        if not self.is_polling and self.current_group_id:
+            self.is_polling = True
+            self.poll_messages()
+
+    def stop_polling(self):
+        if self.polling_job:
+            self.after_cancel(self.polling_job)
+            self.polling_job = None
+        self.is_polling = False
+
+    def poll_messages(self):
+        if self.is_polling and self.current_group_id:
+            self.fetch_messages(self.current_group_id)
+            self.polling_job = self.after(5000, self.poll_messages) # Poll every 5 seconds
 
     def validate_readonly_entry(self, new_value):
         # Always return False to prevent any changes to the entry widget
@@ -433,19 +459,16 @@ class HexChatUI(tk.Frame):
         try:
             while not self.message_queue.empty():
                 message_data = self.message_queue.get_nowait()
-                # GroupMe push messages have a 'subject' field for the actual message
+                alert_type = message_data.get("type")
                 subject = message_data.get("subject")
-                if subject:
+
+                if alert_type == "line.create" and subject:
                     message_group_id = subject.get("group_id")
                     if message_group_id == self.current_group_id:
                         user = subject.get('name', 'Unknown')
                         text = subject.get('text', '')
                         created_at = datetime.fromtimestamp(subject.get('created_at', 0))
                         self.add_message(user, text, created_at)
-                    # else: # Optionally, handle messages for other groups (e.g., notifications)
-                    #     print(f"Received message for unselected group {message_group_id}: {subject.get('text')}")
-                else:
-                    print(f"Received non-subject message: {message_data}")
         finally:
             self.after(100, self.process_message_queue)
 
