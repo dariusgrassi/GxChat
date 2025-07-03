@@ -34,7 +34,7 @@ Follow these steps to get GxChat up and running on your local machine.
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/your-username/GxChat.git # Replace with actual repo URL
+git clone https://github.com/dariusgrassi/GxChat.git
 cd GxChat
 ```
 

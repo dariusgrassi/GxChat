@@ -1,8 +1,7 @@
 # GxChat Roadmap
 
 ## Planned Features
-- [ ] Add clickable links
-- [ ] Notifications when a user is @'d in the current channel
+- [ ] Audio pings when a user is @'d in the current channel
 - [ ] Ability to like messages
 - [ ] Sending images
 - [ ] Support for GIFs
@@ -12,6 +11,7 @@
 - [ ] Support for replies
 - [ ] Light and dark themes
 - [ ] Direct messaging chats
+- [x] Add clickable links
 - [x] Add Github Actions
 - [x] Live updates for likes (remains to be seen whether polling is effective)
 - [x] Add README
