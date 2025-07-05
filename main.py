@@ -9,6 +9,7 @@ import threading
 import time
 import webbrowser
 from queue import Queue
+from playsound import playsound
 
 
 class GroupMePushClient:
@@ -134,6 +135,7 @@ class HexChatUI(tk.Frame):
         self.groups = []
         self.current_group_id = None
         self.current_username = "User1"  # Default username
+        self.current_nickname_in_group = None
         self.current_channel_name = ""  # Default channel name
         self.current_user_id = None
         self.current_members = []
@@ -334,7 +336,9 @@ class HexChatUI(tk.Frame):
         selection = self.channel_list.curselection()
         if selection:
             index = selection[0]
-            group = self.groups[index]
+            group_id = self.groups[index][
+                "id"
+            ]  # Get ID from current (possibly stale) list
 
             # Clear previous channel state
             self.chat_history.config(state=tk.NORMAL)
@@ -344,19 +348,49 @@ class HexChatUI(tk.Frame):
             self.displayed_message_ids.clear()
             self.messages_cache.clear()
 
-            self.current_group_id = group["id"]
-            self.current_channel_name = group["name"]
-            self.current_members = group["members"]
-            self.update_user_list(group["members"])
-            self.fetch_messages(self.current_group_id, initial_load=True)
-            self.update_window_title()
-            self.update_channel_description_entry(group.get("description", ""))
+            try:
+                # Fetch the latest list of all groups to get fresh member data
+                response = requests.get("http://127.0.0.1:3000/groups")
+                response.raise_for_status()
+                all_groups = response.json()
+                self.groups = all_groups  # Update the stored list of groups
 
-            # Ensure push client is running
-            if self.groupme_push_client and not self.groupme_push_client.running:
-                self.groupme_push_client.start()
+                # Find the selected group in the fresh list
+                group = next((g for g in all_groups if g["id"] == group_id), None)
 
-            self.start_polling()  # Start polling for the new channel
+                if group:
+                    self.current_group_id = group["id"]
+                    self.current_channel_name = group["name"]
+                    self.current_members = group["members"]
+
+                    # Find and set the user's nickname for the current group
+                    self.current_nickname_in_group = self.current_username
+                    for member in self.current_members:
+                        if member.get("user_id") == self.current_user_id:
+                            self.current_nickname_in_group = member.get("nickname")
+                            break
+
+                    self.update_user_list(group["members"])
+                    self.fetch_messages(self.current_group_id, initial_load=True)
+                    self.update_window_title()
+                    self.update_channel_description_entry(group.get("description", ""))
+
+                    # Ensure push client is running
+                    if (
+                        self.groupme_push_client
+                        and not self.groupme_push_client.running
+                    ):
+                        self.groupme_push_client.start()
+
+                    self.start_polling()  # Start polling for the new channel
+                else:
+                    self.add_message(
+                        "System",
+                        f"Could not find details for group {group_id} after refresh.",
+                    )
+
+            except requests.exceptions.RequestException as e:
+                self.add_message("System", f"Error fetching group list: {e}")
 
     def start_polling(self):
         if not self.is_polling and self.current_group_id:
@@ -456,6 +490,13 @@ class HexChatUI(tk.Frame):
             self.add_message("System", likes_message, None, is_like=True)
 
         self.displayed_message_ids.add(message_id)  # Mark message as displayed
+
+        if not from_history:
+            # Check for mention and play the appropriate sound
+            if f"@{self.current_nickname_in_group}" in text:
+                self.play_mention_sound()
+            else:
+                self.play_new_message_sound()
 
     def get_user_name(self, user_id):
         for member in self.current_members:
@@ -581,6 +622,23 @@ class HexChatUI(tk.Frame):
     def on_hyperlink_leave(self, event):
         self.chat_history.config(cursor="")
 
+    def play_mention_sound(self):
+        print("play_mention_sound() called.")
+        try:
+            threading.Thread(
+                target=playsound, args=("sounds/mentioned.mp3",), daemon=True
+            ).start()
+        except Exception as e:
+            print(f"Error playing sound: {e}")
+
+    def play_new_message_sound(self):
+        try:
+            threading.Thread(
+                target=playsound, args=("sounds/ping.mp3",), daemon=True
+            ).start()
+        except Exception as e:
+            print(f"Error playing sound: {e}")
+
     def process_message_queue(self):
         try:
             while not self.message_queue.empty():
@@ -588,9 +646,8 @@ class HexChatUI(tk.Frame):
                 if message_data.get("type") == "line.create":
                     message = message_data.get("subject")
                     if message and message.get("group_id") == self.current_group_id:
-                        # Add to message cache and displayed IDs
+                        # Add to message cache
                         self.messages_cache.append(message)
-                        self.displayed_message_ids.add(message.get("id"))
                         # Add to UI
                         self.add_new_message(message)
         finally:

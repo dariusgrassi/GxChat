@@ -1,7 +1,6 @@
 # GxChat Roadmap
 
 ## Planned Features
-- [ ] Audio pings when a user is @'d in the current channel
 - [ ] Ability to like messages
 - [ ] Sending images
 - [ ] Support for GIFs
@@ -11,6 +10,8 @@
 - [ ] Support for replies
 - [ ] Light and dark themes
 - [ ] Direct messaging chats
+- [ ] Optimize performance when switching between channels and pulling chats
+- [x] Audio pings when a user is @'d in the current channel
 - [x] Add clickable links
 - [x] Add Github Actions
 - [x] Live updates for likes (remains to be seen whether polling is effective)
