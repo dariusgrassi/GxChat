@@ -4,4 +4,4 @@ websocket-client
 pre-commit
 types-requests
 playsound==1.2.2
-pyobjc
+pyobjc ; sys_platform == "darwin"
