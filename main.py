@@ -147,10 +147,8 @@ class HexChatUI(tk.Frame):
         self.displayed_message_ids = set()
         self.messages_cache = []
         self.create_widgets()
-        self.fetch_current_user()
-        self.fetch_groups()  # Automatically fetch groups on startup
         self.after(100, self.process_message_queue)  # Start processing queue
-        self.after(200, self.start_faye_client)  # Start Faye client after a short delay
+        self.show_login_view()
 
     def create_widgets(self):
         # Main frame
@@ -158,19 +156,19 @@ class HexChatUI(tk.Frame):
         main_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
 
         # Top-level PanedWindow for resizable columns
-        main_paned_window = tk.PanedWindow(
+        self.main_paned_window = tk.PanedWindow(
             main_frame, orient=tk.HORIZONTAL, sashwidth=5, bg="#2a2a2a"
         )
 
         # Bottom frame for user info and input
-        bottom_frame = tk.Frame(main_frame, bg="#2a2a2a")
+        self.bottom_frame = tk.Frame(main_frame, bg="#2a2a2a")
 
         # Pack containers in the correct order for proper resizing
-        bottom_frame.pack(side=tk.BOTTOM, fill=tk.X, pady=(5, 0))
-        main_paned_window.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+        self.bottom_frame.pack(side=tk.BOTTOM, fill=tk.X, pady=(5, 0))
+        self.main_paned_window.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
 
         # Channel list (left pane)
-        channel_list_frame = tk.Frame(main_paned_window, bg="#3c3c3c")
+        channel_list_frame = tk.Frame(self.main_paned_window, bg="#3c3c3c")
         channel_list_label = tk.Label(
             channel_list_frame,
             text="Channels",
@@ -191,13 +189,13 @@ class HexChatUI(tk.Frame):
         )
         self.channel_list.pack(fill=tk.BOTH, expand=True, padx=5, pady=(0, 5))
         self.channel_list.bind("<<ListboxSelect>>", self.on_channel_select)
-        main_paned_window.add(channel_list_frame, width=200, minsize=100)
+        self.main_paned_window.add(channel_list_frame, width=200, minsize=100)
 
         # Create a new paned window for the chat and user list.
         chat_user_paned_window = tk.PanedWindow(
-            main_paned_window, orient=tk.HORIZONTAL, sashwidth=5, bg="#2a2a2a"
+            self.main_paned_window, orient=tk.HORIZONTAL, sashwidth=5, bg="#2a2a2a"
         )
-        main_paned_window.add(chat_user_paned_window)
+        self.main_paned_window.add(chat_user_paned_window)
 
         # Chat history and description container (middle pane)
         chat_description_history_frame = tk.Frame(chat_user_paned_window, bg="#1e1e1e")
@@ -253,7 +251,7 @@ class HexChatUI(tk.Frame):
 
         # User info and input field
         self.online_indicator = tk.Canvas(
-            bottom_frame, width=10, height=10, bg="#2a2a2a", highlightthickness=0
+            self.bottom_frame, width=10, height=10, bg="#2a2a2a", highlightthickness=0
         )
         self.online_indicator.create_oval(
             0, 0, 10, 10, fill="#00ff00", outline="#00ff00"
@@ -261,7 +259,7 @@ class HexChatUI(tk.Frame):
         self.online_indicator.pack(side=tk.LEFT, padx=(5, 2), pady=(0, 5))
 
         self.user_info_label = tk.Label(
-            bottom_frame,
+            self.bottom_frame,
             text=self.current_username,
             bg="#2a2a2a",
             fg="white",
@@ -270,7 +268,7 @@ class HexChatUI(tk.Frame):
         self.user_info_label.pack(side=tk.LEFT, padx=(0, 5), pady=(0, 5))
 
         self.chat_input = tk.Entry(
-            bottom_frame,
+            self.bottom_frame,
             bg="#3c3c3c",
             fg="white",
             insertbackground="white",
@@ -282,6 +280,62 @@ class HexChatUI(tk.Frame):
         )
         self.chat_input.pack(fill=tk.X, expand=True, padx=(0, 5), pady=(0, 5), ipady=4)
         self.chat_input.bind("<Return>", self.send_message)
+
+        # Login Frame
+        self.login_frame = tk.Frame(self, bg="#2a2a2a")
+        self.login_frame.pack(fill=tk.BOTH, expand=True)
+
+        self.welcome_label = tk.Label(
+            self.login_frame,
+            text="Welcome to GxChat!\nPlease log in to continue.",
+            bg="#2a2a2a",
+            fg="white",
+            font=("Courier", 16, "bold"),
+            wraplength=400,
+            justify=tk.CENTER,
+        )
+        self.welcome_label.pack(pady=(100, 20))
+
+        self.login_button = tk.Button(
+            self.login_frame,
+            text="Login with GroupMe",
+            bg="#4CAF50",
+            fg="black",
+            font=("Courier", 12, "bold"),
+            command=self.open_oauth_url,
+        )
+        self.login_button.pack(pady=20)
+
+    def open_oauth_url(self):
+        client_id = "lSSJQfxNbjkJLO2JVv7MdMGcTbitGX1VP5rkJS0S8lkfTVmC"
+        auth_url = f"https://oauth.groupme.com/oauth/authorize?client_id={client_id}"
+        webbrowser.open_new(auth_url)
+
+    def show_login_view(self):
+        self.main_paned_window.pack_forget()
+        self.bottom_frame.pack_forget()
+        self.login_frame.pack(fill=tk.BOTH, expand=True)
+        self.check_auth_status()
+
+    def check_auth_status(self):
+        try:
+            response = requests.get("http://127.0.0.1:3000/token")
+            response.raise_for_status()
+            token_data = response.json()
+            if token_data.get("token"):
+                self.show_main_view()
+                return
+        except requests.exceptions.RequestException:
+            pass  # Ignore connection errors, we'll retry
+        self.after(1000, self.check_auth_status)
+
+    def show_main_view(self):
+        self.login_frame.pack_forget()
+        self.main_paned_window.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+        self.bottom_frame.pack(side=tk.BOTTOM, fill=tk.X, pady=(5, 0))
+        self.fetch_current_user()
+        self.fetch_groups()
+        self.after(200, self.start_faye_client)
 
     def fetch_current_user(self):
         try:
