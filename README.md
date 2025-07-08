@@ -85,6 +85,12 @@ For planned features and future development, please refer to the [ROADMAP.md](RO
 
 Contributions are welcome! Please see the [ROADMAP.md](ROADMAP.md) for ideas or open an issue to discuss new features or bug fixes.
 
-## License
+## Disclaimer and API Usage
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is a personal side project and is not sponsored by, endorsed by, or affiliated with GroupMe.
+
+This application relies on the GroupMe API. Your use of this project, and any interactions it makes with GroupMe services, is subject to the terms and conditions of the [GroupMe API License Agreement](https://dev.groupme.com/GroupMe_API_License_Agreement.pdf). Please review their license carefully.
+
+---
+
+powered by GroupMe®
