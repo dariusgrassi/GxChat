@@ -29,7 +29,6 @@ Follow these steps to get GxChat up and running on your local machine.
 -   [Python 3.x](https://www.python.org/downloads/)
 -   [pip](https://pip.pypa.io/en/stable/installation/)
 -   [Docker Desktop](https://www.docker.com/products/docker-desktop) (for running the Rust backend)
--   A GroupMe Developer Account and an Access Token. You can obtain one from the [GroupMe Developer Site](https://dev.groupme.com/).
 
 ### 1. Clone the Repository
 
@@ -38,18 +37,7 @@ git clone https://github.com/dariusgrassi/GxChat.git
 cd GxChat
 ```
 
-### 2. Configure GroupMe API Key
-
-Create a `.env` file in the `backend/` directory and add your GroupMe Access Token:
-
-```
-# backend/.env
-GROUPME_ACCESS_TOKEN=your_groupme_access_token_here
-```
-
-**Important:** Replace `your_groupme_access_token_here` with your actual GroupMe API access token. This file is ignored by Git to prevent your token from being committed.
-
-### 3. Run the Backend (Docker)
+### 2. Run the Backend (Docker)
 
 Navigate to the root of the `GxChat` directory and use Docker Compose to build and run the backend service:
 
@@ -63,7 +51,7 @@ This command will:
 
 Leave this terminal window open, as the backend will be running in the foreground.
 
-### 4. Set up the Frontend (Python)
+### 3. Set up the Frontend (Python)
 
 In a new terminal window, navigate to the root of the `GxChat` directory and install the Python dependencies:
 
@@ -71,7 +59,7 @@ In a new terminal window, navigate to the root of the `GxChat` directory and ins
 pip install -r requirements.txt
 ```
 
-### 5. Install Pre-commit Hooks (Recommended)
+### 4. Install Pre-commit Hooks (Recommended)
 
 To ensure code quality and consistency, install the pre-commit hooks. These will run automatically before each commit.
 
@@ -79,7 +67,7 @@ To ensure code quality and consistency, install the pre-commit hooks. These will
 pre-commit install
 ```
 
-### 6. Run the Frontend
+### 5. Run the Frontend
 
 From the root of the `GxChat` directory, start the Python frontend:
 
@@ -87,7 +75,7 @@ From the root of the `GxChat` directory, start the Python frontend:
 python main.py
 ```
 
-The GxChat application window should now appear.
+The GxChat application window should now appear. You will be prompted to log in with GroupMe via your web browser.
 
 ## Roadmap
 

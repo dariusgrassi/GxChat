@@ -1,6 +1,7 @@
 # GxChat Roadmap
 
 ## Planned Features
+- [ ] Remember user logins (OAuth tokens) for persistence across sessions
 - [ ] Ability to like messages
 - [ ] Sending images
 - [ ] Support for GIFs
@@ -11,6 +12,7 @@
 - [ ] Light and dark themes
 - [ ] Direct messaging chats
 - [ ] Optimize performance when switching between channels and pulling chats
+- [x] Register on Applications from dev.groupme.com to move from API key to OAuth
 - [x] Audio pings when a user is @'d in the current channel
 - [x] Add clickable links
 - [x] Add Github Actions
