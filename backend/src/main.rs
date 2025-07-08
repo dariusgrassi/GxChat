@@ -1,13 +1,12 @@
 use axum::{
-    extract::{Json as AxumJson, Path},
-    response::Json,
+    extract::{Json as AxumJson, Path, Query},
+    response::{Html, Json, Redirect},
     routing::{get, post},
-    Router,
+    Extension, Router,
 };
-use dotenv::dotenv;
 use serde::{Deserialize, Serialize};
-use std::env;
 use std::net::SocketAddr;
+use std::sync::{Arc, Mutex};
 use uuid::Uuid;
 
 // This struct matches the top-level API response object for groups from GroupMe.
@@ -31,6 +30,42 @@ struct MessagesResponse {
 #[derive(Deserialize, Debug, Serialize)]
 struct ApiResponseUser {
     response: User,
+}
+
+#[derive(Clone)]
+struct AppState {
+    access_token: Arc<Mutex<Option<String>>>,
+}
+
+#[derive(Deserialize)]
+struct CallbackQuery {
+    access_token: String,
+}
+
+async fn callback(
+    Query(query): Query<CallbackQuery>,
+    Extension(state): Extension<Arc<AppState>>,
+) -> Redirect {
+    let mut token = state.access_token.lock().unwrap();
+    *token = Some(query.access_token);
+    Redirect::to("http://localhost:3000/login_success.html")
+}
+
+async fn login_success() -> Html<&'static str> {
+    Html(
+        r#"
+        <!DOCTYPE html>
+        <html>
+            <head>
+                <title>Login Successful</title>
+            </head>
+            <body>
+                <h1>Login Successful!</h1>
+                <p>You can now close this window.</p>
+            </body>
+        </html>
+    "#,
+    )
 }
 
 #[derive(Deserialize, Debug, Serialize, Clone)]
@@ -212,87 +247,122 @@ async fn get_current_user_from_api(token: &str) -> Result<User, Box<dyn std::err
 }
 
 // Axum handler to get all groups.
-async fn get_all_groups() -> Json<Vec<Group>> {
-    let token = env::var("GROUPME_ACCESS_TOKEN").expect("GROUPME_ACCESS_TOKEN must be set");
-    match get_groups_from_api(&token).await {
-        Ok(groups) => Json(groups),
-        Err(e) => {
-            eprintln!("Error fetching groups: {e}");
-            Json(vec![] as Vec<Group>)
+async fn get_all_groups(Extension(state): Extension<Arc<AppState>>) -> Json<Vec<Group>> {
+    let token = state.access_token.lock().unwrap().clone();
+    if let Some(token) = token {
+        match get_groups_from_api(&token).await {
+            Ok(groups) => Json(groups),
+            Err(e) => {
+                eprintln!("Error fetching groups: {e}");
+                Json(vec![] as Vec<Group>)
+            }
         }
+    } else {
+        Json(vec![] as Vec<Group>)
     }
 }
 
 // Axum handler to get messages for a specific group.
-async fn get_group_messages(Path(group_id): Path<String>) -> Json<Vec<Message>> {
-    let token = env::var("GROUPME_ACCESS_TOKEN").expect("GROUPME_ACCESS_TOKEN must be set");
-    match get_messages_from_api(&group_id, &token).await {
-        Ok(messages) => Json(messages),
-        Err(e) => {
-            eprintln!("Error fetching messages for group {group_id}: {e}");
-            Json(vec![] as Vec<Message>)
+async fn get_group_messages(
+    Path(group_id): Path<String>,
+    Extension(state): Extension<Arc<AppState>>,
+) -> Json<Vec<Message>> {
+    let token = state.access_token.lock().unwrap().clone();
+    if let Some(token) = token {
+        match get_messages_from_api(&group_id, &token).await {
+            Ok(messages) => Json(messages),
+            Err(e) => {
+                eprintln!("Error fetching messages for group {group_id}: {e}");
+                Json(vec![] as Vec<Message>)
+            }
         }
+    } else {
+        Json(vec![] as Vec<Message>)
     }
 }
 
 // Axum handler to send a message to a specific group.
 async fn send_group_message(
     Path(group_id): Path<String>,
+    Extension(state): Extension<Arc<AppState>>,
     AxumJson(payload): AxumJson<SendMessagePayload>,
 ) -> Json<String> {
-    let token = env::var("GROUPME_ACCESS_TOKEN").expect("GROUPME_ACCESS_TOKEN must be set");
-    match send_message_to_api(&group_id, &token, payload.text).await {
-        Ok(_) => Json("Message sent successfully".to_string()),
-        Err(e) => {
-            eprintln!("Error sending message to group {group_id}: {e}");
-            Json(format!("Error sending message: {e}"))
+    let token = state.access_token.lock().unwrap().clone();
+    if let Some(token) = token {
+        match send_message_to_api(&group_id, &token, payload.text).await {
+            Ok(_) => Json("Message sent successfully".to_string()),
+            Err(e) => {
+                eprintln!("Error sending message to group {group_id}: {e}");
+                Json(format!("Error sending message: {e}"))
+            }
         }
+    } else {
+        Json("Not authenticated".to_string())
     }
 }
 
 // Axum handler to get the current user's details.
-async fn get_current_user() -> Json<User> {
-    let token = env::var("GROUPME_ACCESS_TOKEN").expect("GROUPME_ACCESS_TOKEN must be set");
-    match get_current_user_from_api(&token).await {
-        Ok(user) => Json(user),
-        Err(e) => {
-            eprintln!("Error fetching current user: {e}");
-            // Return a default or empty User struct in case of error
-            Json(User {
-                id: String::new(),
-                name: "Unknown User".to_string(),
-                email: String::new(),
-                image_url: String::new(),
-                phone_number: String::new(),
-                created_at: 0,
-                updated_at: 0,
-                locale: String::new(),
-                sms: false, // Corrected from sms_mode
-            })
+async fn get_current_user(Extension(state): Extension<Arc<AppState>>) -> Json<User> {
+    let token = state.access_token.lock().unwrap().clone();
+    if let Some(token) = token {
+        match get_current_user_from_api(&token).await {
+            Ok(user) => Json(user),
+            Err(e) => {
+                eprintln!("Error fetching current user: {e}");
+                // Return a default or empty User struct in case of error
+                Json(User {
+                    id: String::new(),
+                    name: "Unknown User".to_string(),
+                    email: String::new(),
+                    image_url: String::new(),
+                    phone_number: String::new(),
+                    created_at: 0,
+                    updated_at: 0,
+                    locale: String::new(),
+                    sms: false, // Corrected from sms_mode
+                })
+            }
         }
+    } else {
+        Json(User {
+            id: String::new(),
+            name: "Unknown User".to_string(),
+            email: String::new(),
+            image_url: String::new(),
+            phone_number: String::new(),
+            created_at: 0,
+            updated_at: 0,
+            locale: String::new(),
+            sms: false, // Corrected from sms_mode
+        })
     }
 }
 
 #[derive(Serialize)]
 struct TokenResponse {
-    token: String,
+    token: Option<String>,
 }
 
-async fn get_token() -> Json<TokenResponse> {
-    let token = env::var("GROUPME_ACCESS_TOKEN").expect("GROUPME_ACCESS_TOKEN must be set");
+async fn get_token(Extension(state): Extension<Arc<AppState>>) -> Json<TokenResponse> {
+    let token = state.access_token.lock().unwrap().clone();
     Json(TokenResponse { token })
 }
 
 #[tokio::main]
 async fn main() {
-    dotenv().ok();
+    let state = Arc::new(AppState {
+        access_token: Arc::new(Mutex::new(None)),
+    });
 
     let app = Router::new()
         .route("/groups", get(get_all_groups))
         .route("/groups/:group_id/messages", get(get_group_messages))
         .route("/groups/:group_id/messages", post(send_group_message))
         .route("/user/me", get(get_current_user))
-        .route("/token", get(get_token));
+        .route("/token", get(get_token))
+        .route("/callback", get(callback))
+        .route("/login_success.html", get(login_success))
+        .layer(Extension(state));
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
     println!("listening on {addr}");
