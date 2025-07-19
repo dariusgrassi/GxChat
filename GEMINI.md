@@ -26,7 +26,6 @@ GxChat is a cross-platform chat application that interacts with the GroupMe API.
 
 1.  **Backend (Docker):** The Rust backend is containerized using Docker and managed with `docker-compose`. It runs on `http://127.0.0.1:3000`.
 2.  **Frontend (Python):** The Python frontend uses `requirements.txt` for dependencies.
-3.  **API Key:** A GroupMe Access Token must be placed in a `.env` file in the `backend/` directory.
 
 ### Running the Application
 
