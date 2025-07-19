@@ -14,6 +14,12 @@ GxChat is a cross-platform chat application designed to interact with the GroupM
 -   **Containerized Backend:** Easy setup and consistent environment for the Rust backend using Docker.
 -   **Pre-commit Hooks:** Automated code quality checks for Python (Ruff, MyPy) and Rust (Rustfmt, Clippy).
 
+## Appearance
+
+Here is a screenshot of the GxChat interface:
+
+![GxChat Interface](assets/interface.png)
+
 ## Architecture
 
 -   **Frontend:** Python 3.x with Tkinter for the GUI.
