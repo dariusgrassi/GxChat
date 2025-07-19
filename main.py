@@ -1,5 +1,6 @@
 import tkinter as tk
 from tkinter import font
+from tkinter import ttk
 import requests
 from datetime import datetime
 from PIL import Image, ImageTk
@@ -155,10 +156,20 @@ class HexChatUI(tk.Frame):
         main_frame = tk.Frame(self, bg="#2a2a2a")
         main_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
 
-        # Top-level PanedWindow for resizable columns
-        self.main_paned_window = tk.PanedWindow(
-            main_frame, orient=tk.HORIZONTAL, sashwidth=5, bg="#2a2a2a"
+        # Style for PanedWindow
+        style = ttk.Style()
+        style.theme_use("clam")
+        style.configure("TPanedWindow", background="#2a2a2a")
+        style.configure(
+            "TPanedWindow.Sash",
+            background="#2a2a2a",
+            bordercolor="#2a2a2a",
+            relief=tk.FLAT,
         )
+        style.map("TPanedWindow.Sash", background=[("!disabled", "#2a2a2a")])
+
+        # Top-level PanedWindow for resizable columns
+        self.main_paned_window = ttk.PanedWindow(main_frame, orient=tk.HORIZONTAL)
 
         # Bottom frame for user info and input
         self.bottom_frame = tk.Frame(main_frame, bg="#2a2a2a")
@@ -189,19 +200,17 @@ class HexChatUI(tk.Frame):
         )
         self.channel_list.pack(fill=tk.BOTH, expand=True, padx=5, pady=(0, 5))
         self.channel_list.bind("<<ListboxSelect>>", self.on_channel_select)
-        self.main_paned_window.add(channel_list_frame, width=200, minsize=100)
+        self.main_paned_window.add(channel_list_frame, weight=0)
 
         # Create a new paned window for the chat and user list.
-        chat_user_paned_window = tk.PanedWindow(
-            self.main_paned_window, orient=tk.HORIZONTAL, sashwidth=5, bg="#2a2a2a"
+        chat_user_paned_window = ttk.PanedWindow(
+            self.main_paned_window, orient=tk.HORIZONTAL
         )
-        self.main_paned_window.add(chat_user_paned_window)
+        self.main_paned_window.add(chat_user_paned_window, weight=1)
 
         # Chat history and description container (middle pane)
         chat_description_history_frame = tk.Frame(chat_user_paned_window, bg="#1e1e1e")
-        chat_user_paned_window.add(
-            chat_description_history_frame, width=400, minsize=200
-        )
+        chat_user_paned_window.add(chat_description_history_frame, weight=1)
 
         # Channel Description Entry (read-only appearance)
         self.channel_description_entry = tk.Entry(
@@ -247,7 +256,7 @@ class HexChatUI(tk.Frame):
             font=("Courier", 12),
         )
         self.user_list.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
-        chat_user_paned_window.add(user_list_frame, width=200, minsize=100)
+        chat_user_paned_window.add(user_list_frame, weight=0)
 
         # User info and input field
         self.online_indicator = tk.Canvas(
